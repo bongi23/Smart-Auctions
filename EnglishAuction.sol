@@ -16,6 +16,8 @@ contract EnglishAuction {
     bool sold = false;
     bool paid = false;
     
+    mapping(address => uint) pendig_refunds;
+    
     event AuctionStarting();
     event HigestBidUpdate();
     event AuctionEnded();
@@ -33,7 +35,8 @@ contract EnglishAuction {
         require(_min_increment >= 1 && _min_increment <= 100);
         require(_bid_expiration > block.number+20);
         require(_buyout_price > _reserve_price);
-        require(_buyout_price > 0 && _reserve_price > 0);
+        require(_buyout_price > 0);
+        require( _reserve_price > 0);
         
         seller = _seller;
         
@@ -64,21 +67,27 @@ contract EnglishAuction {
         
         if(highest_bid == 0) { /// first bid
             require(msg.value >= reserve_price);
+            
             highest_bid = msg.value;
             highest_bidder = msg.sender;
         }
         else {
             uint increment = highest_bid*min_increment/100;
             require(msg.value >= highest_bid + increment);
-            highest_bidder.transfer(highest_bid);
+            
+            address payable refund_address = highest_bidder;
+            uint refund = highest_bid;
             
             highest_bid = msg.value;
             highest_bidder = msg.sender;
+            
+            refund_address.transfer(refund); /// IMPLEMENT WITHDRAWL PATTERN
         }
     }
     
     function finalize() public when_auction_is_close {
         require(paid == false);
+        require(msg.sender == seller);
         
         if(sold) { /// CHECK-EFFECTS-INTERACTION
             paid = true;
