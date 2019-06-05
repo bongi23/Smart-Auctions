@@ -1,39 +1,56 @@
 pragma solidity >=0.4.22 <0.6.0;
 
 contract EnglishAuction {
+    
+    /// static after constructor
     address payable seller;
+    uint public bid_expiration; /// can be smaller?
+    uint8 public min_increment; /// percentual wrt the highest bid
+    uint public buyout_price;
+    uint public reserve_price;
+    uint public start_time = block.number + 1;
+    uint public duration; /// can be smaller?
     
-    uint bid_expiration; /// can be smaller?
-    uint8 min_increment; /// percentual wrt the highest bid
-    uint40 buyout_price;
-    uint40 reserve_price;
-    
+    /// auction state
     address payable highest_bidder;
     uint highest_bid = 0;
-    
-    uint start_time = block.number + 20;
-    uint duration; /// can be smaller?
+    uint bid_block = 0;
     bool sold = false;
     bool paid = false;
     
-    mapping(address => uint) pendig_refunds;
-    
-    event AuctionStarting();
-    event HigestBidUpdate();
-    event AuctionEnded();
-    event SoldByBuyout();
+    mapping(address => uint) pending_refunds; /// funds of bidders, implementing withdrawal pattern
+
+    event AuctionStarting(uint);
+    event SoldByBuyout(address, uint);
+    event Sold(address, uint);
+    event Unsold();
+    event OfferOutbid(address);
+    event WithdrawalExecuted(address, uint);
     
     modifier when_auction_is_open() {
-            require(block.number >= start_time && start_time+duration <= block.number); _;
+            require(block.number >= start_time && start_time+duration >= block.number); _;
     }
     
-    modifier when_auction_is_close() {
-            require(block.number >= start_time+duration); _;
+    modifier when_auction_is_close_OR_sold() {
+            require(block.number > start_time+duration);
+            require(sold); _;
+    }
+
+    modifier when_offer_outbid() {
+        require(pending_refunds[msg.sender] > 0); _;
     }
     
-    constructor (uint _duration, address payable _seller, uint8 _min_increment, uint40 _buyout_price, uint40 _reserve_price, uint _bid_expiration) public {
+    modifier not_the_seller() {
+        require(seller != msg.sender); _;
+    }
+    
+    modifier only_the_seller() {
+        require(seller == msg.sender); _;
+    }
+    
+    
+    constructor (uint _duration, address payable _seller, uint8 _min_increment, uint _buyout_price, uint _reserve_price, uint _bid_expiration) public {
         require(_min_increment >= 1 && _min_increment <= 100);
-        require(_bid_expiration > block.number+20);
         require(_buyout_price > _reserve_price);
         require(_buyout_price > 0);
         require( _reserve_price > 0);
@@ -47,22 +64,28 @@ contract EnglishAuction {
         
         duration = _duration; /// how many blocks until auction expiration 
         
-        emit AuctionStarting();
+        emit AuctionStarting(duration);
     }
     
-    function buy_now() public payable when_auction_is_open {
-        require(highest_bid == 0);
+    function buy_now() public payable when_auction_is_open not_the_seller {
         require(sold == false);
+        require(highest_bid == 0);
         require(msg.value >= buyout_price); /// maybe equal?
         
         sold = true;
         highest_bidder = msg.sender;
         highest_bid = msg.value;
         
-        emit SoldByBuyout();
+        emit SoldByBuyout(msg.sender, buyout_price);
     }
     
-    function bid() public payable when_auction_is_open {
+    function bid() public payable when_auction_is_open not_the_seller {
+        require(msg.sender != highest_bidder);
+        
+        if(bid_block+bid_expiration < block.number) {
+            sold = true;
+            emit Sold(highest_bidder, highest_bid);
+        }
         require(sold == false);
         
         if(highest_bid == 0) { /// first bid
@@ -70,6 +93,7 @@ contract EnglishAuction {
             
             highest_bid = msg.value;
             highest_bidder = msg.sender;
+            bid_block = block.number;
         }
         else {
             uint increment = highest_bid*min_increment/100;
@@ -80,18 +104,30 @@ contract EnglishAuction {
             
             highest_bid = msg.value;
             highest_bidder = msg.sender;
+            bid_block = block.number;
             
-            refund_address.transfer(refund); /// IMPLEMENT WITHDRAWL PATTERN
+            pending_refunds[refund_address] = refund;
+            
+            emit OfferOutbid(refund_address);
         }
     }
     
-    function finalize() public when_auction_is_close {
+    function finalize() public when_auction_is_close_OR_sold only_the_seller {
         require(paid == false);
-        require(msg.sender == seller);
         
-        if(sold) { /// CHECK-EFFECTS-INTERACTION
-            paid = true;
+        paid = true;
+        if(!sold) 
+            emit Unsold();
+        else
             seller.transfer(highest_bid);
-        }
+    }
+
+    function withdrawal() public when_offer_outbid {
+        uint refund = pending_refunds[msg.sender];
+        pending_refunds[msg.sender] = 0;
+        
+        emit WithdrawalExecuted(msg.sender, refund);
+        
+        msg.sender.transfer(refund);
     }
 }
