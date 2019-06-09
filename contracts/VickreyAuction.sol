@@ -14,36 +14,43 @@ contract VickreyAuction {
     address payable seller;
     address payable auctioneer = msg.sender;
     address payable charity;
-    uint reserve_price;
-    uint commitment_phase_length;
-    uint withdrawal_phase_length;
-    uint opening_phase_length;
-    uint deposit_requirement;
+    uint public reserve_price;
+    uint public commitment_phase_length;
+    uint public withdrawal_phase_length;
+    uint public opening_phase_length;
+    uint public deposit_requirement;
     
-    uint start = block.number + 20; /// 20 is a grace period of about 5 mins
-    uint end_commitment;
+    uint public start = block.number; /// 20 is a grace period of about 5 mins
+    uint public end_commitment;
     
-    uint start_withdrawal;
-    uint end_withdrawal;
+    uint public start_withdrawal;
+    uint public end_withdrawal;
     
-    uint start_opening;
-    uint end;
+    uint public start_opening;
+    uint public end;
     
     /// state of the contract
     mapping(address => Bid) public bids;
 
-    address highest_bidder;
-    uint highest_bid;
-    uint price_to_pay; /// 2nd highest bid
+    address public highest_bidder;
+    uint public highest_bid;
+    uint public price_to_pay; /// 2nd highest bid
     
-    uint total_bid; /// total envelopes received
-    uint total_opened; /// total envelopes opened
-    uint total_withdrawn; /// total envelopes withdrawn
-    uint total_void; /// total envelopes opened but with bid < reserve_price
+    uint public total_bid; /// total envelopes received
+    uint public total_opened; /// total envelopes opened
+    uint public total_withdrawn; /// total envelopes withdrawn
+    uint public total_void; /// total envelopes opened but with bid < reserve_price
     
-    bool sold;
+    bool public sold;
 
-    event AuctionStarting(uint, uint);
+    event LogAuctionStarting(uint, uint);
+    event LogEnvelopeCommited(address);
+    event LogEnvelopeWithdrawn(address);
+    event LogVoidBid(address, uint);
+    event LogLosingBid(address, uint);
+    event LogHighestBid(address, uint, uint);
+    event LogUpdateSecondPrice(uint, uint);
+    
     
     modifier only_during(uint start_block, uint end_block) {
         require(block.number >= start && block.number <= end); _;
@@ -62,9 +69,13 @@ contract VickreyAuction {
         /// withdrawn => !opened
     }
     
+    function debug_keccak(bytes32 nonce, uint val) public pure returns (bytes32) {
+        return keccak256(abi.encode(nonce,val));
+    }
+    
     constructor (address payable _seller, uint _reserve_price, uint _commitment_phase_length, uint _withdrawal_phase_length, uint _opening_phase_length, uint _deposit_requirement) public {
-        require(deposit_requirement > 0);
-        require(reserve_price > 0);
+        require(_deposit_requirement > 0);
+        require(_reserve_price > 0);
         require(_deposit_requirement >= _reserve_price/4 && _deposit_requirement <= _reserve_price/2);
 
         seller = _seller;
@@ -84,7 +95,7 @@ contract VickreyAuction {
         end = start_opening+opening_phase_length;
         
         
-        emit AuctionStarting(start, end);
+        emit LogAuctionStarting(start, end);
     }
     
     function commit(bytes32 _envelope) public payable only_during(start, end_commitment) {
@@ -96,6 +107,8 @@ contract VickreyAuction {
 
         total_bid++;
         
+        emit LogEnvelopeCommited(msg.sender);
+        
     }
     
     function withdraw_envelope() public only_during(start_withdrawal, end_withdrawal) {
@@ -104,6 +117,8 @@ contract VickreyAuction {
         bids[msg.sender].withdrawn = true;
         total_withdrawn++;
         msg.sender.transfer(deposit_requirement/2);
+        
+        emit LogEnvelopeWithdrawn(msg.sender);
     }
     
     function open(bytes32 nonce) public payable only_during(start_opening, end) {
@@ -119,6 +134,7 @@ contract VickreyAuction {
         if(msg.value < reserve_price) {
             bids[msg.sender].refund = true;
             total_void++;
+            emit LogVoidBid(msg.sender, msg.value);
             msg.sender.transfer(msg.value+(deposit_requirement/2));
         } else {
             total_opened++;
@@ -128,15 +144,18 @@ contract VickreyAuction {
                 price_to_pay = reserve_price;
                 highest_bid = msg.value;
                 highest_bidder = msg.sender;
+                emit LogHighestBid(msg.sender, msg.value, reserve_price);
             }
             /// losing bid
             else if(msg.value <= highest_bid ) {
                ///...but check if 2nd highest bid
-                if(msg.value >= price_to_pay)
+                if(msg.value >= price_to_pay) {
+                    emit LogUpdateSecondPrice(msg.value, price_to_pay);
                     price_to_pay = msg.value;
-                               
+                }
                 bids[msg.sender].refund = true;
                 uint full_refund = msg.value+deposit_requirement;
+                emit LogLosingBid(msg.sender, msg.value);
                 msg.sender.transfer(full_refund);
             }
             /// new highest_bid
@@ -144,6 +163,7 @@ contract VickreyAuction {
                 price_to_pay = highest_bid;
                 highest_bid = msg.value;
                 highest_bidder = msg.sender;
+                emit LogHighestBid(msg.sender, msg.value, price_to_pay);
             }
         }
     }
