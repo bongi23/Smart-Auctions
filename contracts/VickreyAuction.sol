@@ -1,6 +1,9 @@
 pragma solidity >=0.4.21 <0.6.0;
 
-contract VickreyAuction {
+import "./Auction.sol";
+import "./Escrow.sol";
+
+contract VickreyAuction is Auction {
     
     struct Bid {
         bytes32 bid_hash;
@@ -19,10 +22,11 @@ contract VickreyAuction {
     uint public withdrawal_phase_length;
     uint public opening_phase_length;
     uint public deposit_requirement;
+    uint escrow_duration;
     
     uint public start = block.number; /// 20 is a grace period of about 5 mins
     uint public end_commitment;
-    
+
     uint public start_withdrawal;
     uint public end_withdrawal;
     
@@ -32,36 +36,29 @@ contract VickreyAuction {
     /// state of the contract
     mapping(address => Bid) public bids;
 
-    address public highest_bidder;
-    uint public highest_bid;
     uint public price_to_pay; /// 2nd highest bid
     
-    uint public total_bid; /// total envelopes received
-    uint public total_opened; /// total envelopes opened
-    uint public total_withdrawn; /// total envelopes withdrawn
-    uint public total_void; /// total envelopes opened but with bid < reserve_price
-    
+    /// finalizing 
     bool public sold;
 
-    event LogAuctionStarting(uint, uint);
     event LogEnvelopeCommited(address);
     event LogEnvelopeWithdrawn(address);
     event LogVoidBid(address, uint);
     event LogLosingBid(address, uint);
-    event LogHighestBid(address, uint, uint);
     event LogUpdateSecondPrice(uint, uint);
     
     
     modifier only_during(uint start_block, uint end_block) {
-        require(block.number >= start && block.number <= end); _;
+        if(!debug)
+            require(block.number >= start && block.number <= end); _;
     }
     
     modifier only_when_closed {
         require(block.number > end); _;
     }
     
-    modifier only_auctioneer {
-        require(msg.sender == auctioneer); _;
+    modifier only_auctioneer_seller_buyer {
+        require(msg.sender == auctioneer || msg.sender == seller || msg.sender == highest_bidder); _;
     }
     
     modifier only_one_refund {
@@ -73,7 +70,8 @@ contract VickreyAuction {
         return keccak256(abi.encode(nonce,val));
     }
     
-    constructor (address payable _seller, uint _reserve_price, uint _commitment_phase_length, uint _withdrawal_phase_length, uint _opening_phase_length, uint _deposit_requirement) public {
+    constructor (address payable _seller, uint _reserve_price, uint _commitment_phase_length, uint _withdrawal_phase_length, 
+                    uint _opening_phase_length, uint _deposit_requirement, uint _escrow_duration, bool _debug) public {
         require(_deposit_requirement > 0);
         require(_reserve_price > 0);
         require(_deposit_requirement >= _reserve_price/4 && _deposit_requirement <= _reserve_price/2);
@@ -94,6 +92,8 @@ contract VickreyAuction {
         start_opening = end_withdrawal+1;
         end = start_opening+opening_phase_length;
         
+        escrow_duration = _escrow_duration;
+        debug = _debug;
         
         emit LogAuctionStarting(start, end);
     }
@@ -104,8 +104,6 @@ contract VickreyAuction {
         require(msg.value == deposit_requirement);
         
         bids[msg.sender].bid_hash = _envelope;
-
-        total_bid++;
         
         emit LogEnvelopeCommited(msg.sender);
         
@@ -115,10 +113,10 @@ contract VickreyAuction {
         require(bids[msg.sender].withdrawn == false);
         
         bids[msg.sender].withdrawn = true;
-        total_withdrawn++;
+        emit LogEnvelopeWithdrawn(msg.sender);
+
         msg.sender.transfer(deposit_requirement/2);
         
-        emit LogEnvelopeWithdrawn(msg.sender);
     }
     
     function open(bytes32 nonce) public payable only_during(start_opening, end) {
@@ -133,14 +131,11 @@ contract VickreyAuction {
         /// void bid 
         if(msg.value < reserve_price) {
             bids[msg.sender].refund = true;
-            total_void++;
             emit LogVoidBid(msg.sender, msg.value);
             msg.sender.transfer(msg.value+(deposit_requirement/2));
-        } else {
-            total_opened++;
-    
+        } else {    
             /// first valid opened bid
-            if(total_opened == 1) {
+            if(highest_bid == 0) {
                 price_to_pay = reserve_price;
                 highest_bid = msg.value;
                 highest_bidder = msg.sender;
@@ -168,17 +163,13 @@ contract VickreyAuction {
         }
     }
     
-    function finalize() public only_when_closed only_auctioneer{
-        require(!sold);
-        sold = true;
-        
-        uint total_closed = total_bid - (total_opened+total_withdrawn+total_void);
-        uint charity_funds = total_closed*deposit_requirement + (total_withdrawn+total_void)*deposit_requirement/2;
-        
-        /// pay seller
-        seller.transfer(price_to_pay);
+    function finalize() public only_when_closed only_auctioneer_seller_buyer returns (address){
+        /// initialize escrow contract
+        Escrow e = (new Escrow).value(price_to_pay)(seller, highest_bidder);
         /// send fund to charity
-        charity.transfer(charity_funds);
+        charity.transfer(address(this).balance);
+        
+        return address(e);
     }
     
     function ask_refund() public only_when_closed only_one_refund {

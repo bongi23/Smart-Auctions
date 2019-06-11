@@ -1,0 +1,164 @@
+{
+  "contractName": "Auction",
+  "abi": [],
+  "metadata": "{\"compiler\":{\"version\":\"0.5.8+commit.23d335f2\"},\"language\":\"Solidity\",\"output\":{\"abi\":[],\"devdoc\":{\"methods\":{}},\"userdoc\":{\"methods\":{}}},\"settings\":{\"compilationTarget\":{\"/home/bongi/Scrivania/Smart-Auctions/contracts/Auction.sol\":\"Auction\"},\"evmVersion\":\"petersburg\",\"libraries\":{},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"/home/bongi/Scrivania/Smart-Auctions/contracts/Auction.sol\":{\"keccak256\":\"0x5b77a9ac893c9f273aa45be320ed95ebd1f5ebdcbaade396626b676e04ccecb2\",\"urls\":[\"bzzr://942324205e7b80212ec7c727eb208eb0e2e4be17c0f23322ceae5a04cb2ad11c\"]}},\"version\":1}",
+  "bytecode": "0x6080604052348015600f57600080fd5b50603580601d6000396000f3fe6080604052600080fdfea165627a7a723058203683d11832e6c3beaed267b2651643bc1701628ab5cd0e0dc591351f27ba0b3f0029",
+  "deployedBytecode": "0x6080604052600080fdfea165627a7a723058203683d11832e6c3beaed267b2651643bc1701628ab5cd0e0dc591351f27ba0b3f0029",
+  "sourceMap": "34:44:0:-;;;;8:9:-1;5:2;;;30:1;27;20:12;5:2;34:44:0;;;;;;;",
+  "deployedSourceMap": "34:44:0:-;;;;;",
+  "source": "pragma solidity >=0.4.21 <0.6.0;\n\ncontract Auction {\n    uint reserve_price;\n}",
+  "sourcePath": "/home/bongi/Scrivania/Smart-Auctions/contracts/Auction.sol",
+  "ast": {
+    "absolutePath": "/home/bongi/Scrivania/Smart-Auctions/contracts/Auction.sol",
+    "exportedSymbols": {
+      "Auction": [
+        4
+      ]
+    },
+    "id": 5,
+    "nodeType": "SourceUnit",
+    "nodes": [
+      {
+        "id": 1,
+        "literals": [
+          "solidity",
+          ">=",
+          "0.4",
+          ".21",
+          "<",
+          "0.6",
+          ".0"
+        ],
+        "nodeType": "PragmaDirective",
+        "src": "0:32:0"
+      },
+      {
+        "baseContracts": [],
+        "contractDependencies": [],
+        "contractKind": "contract",
+        "documentation": null,
+        "fullyImplemented": true,
+        "id": 4,
+        "linearizedBaseContracts": [
+          4
+        ],
+        "name": "Auction",
+        "nodeType": "ContractDefinition",
+        "nodes": [
+          {
+            "constant": false,
+            "id": 3,
+            "name": "reserve_price",
+            "nodeType": "VariableDeclaration",
+            "scope": 4,
+            "src": "57:18:0",
+            "stateVariable": true,
+            "storageLocation": "default",
+            "typeDescriptions": {
+              "typeIdentifier": "t_uint256",
+              "typeString": "uint256"
+            },
+            "typeName": {
+              "id": 2,
+              "name": "uint",
+              "nodeType": "ElementaryTypeName",
+              "src": "57:4:0",
+              "typeDescriptions": {
+                "typeIdentifier": "t_uint256",
+                "typeString": "uint256"
+              }
+            },
+            "value": null,
+            "visibility": "internal"
+          }
+        ],
+        "scope": 5,
+        "src": "34:44:0"
+      }
+    ],
+    "src": "0:78:0"
+  },
+  "legacyAST": {
+    "absolutePath": "/home/bongi/Scrivania/Smart-Auctions/contracts/Auction.sol",
+    "exportedSymbols": {
+      "Auction": [
+        4
+      ]
+    },
+    "id": 5,
+    "nodeType": "SourceUnit",
+    "nodes": [
+      {
+        "id": 1,
+        "literals": [
+          "solidity",
+          ">=",
+          "0.4",
+          ".21",
+          "<",
+          "0.6",
+          ".0"
+        ],
+        "nodeType": "PragmaDirective",
+        "src": "0:32:0"
+      },
+      {
+        "baseContracts": [],
+        "contractDependencies": [],
+        "contractKind": "contract",
+        "documentation": null,
+        "fullyImplemented": true,
+        "id": 4,
+        "linearizedBaseContracts": [
+          4
+        ],
+        "name": "Auction",
+        "nodeType": "ContractDefinition",
+        "nodes": [
+          {
+            "constant": false,
+            "id": 3,
+            "name": "reserve_price",
+            "nodeType": "VariableDeclaration",
+            "scope": 4,
+            "src": "57:18:0",
+            "stateVariable": true,
+            "storageLocation": "default",
+            "typeDescriptions": {
+              "typeIdentifier": "t_uint256",
+              "typeString": "uint256"
+            },
+            "typeName": {
+              "id": 2,
+              "name": "uint",
+              "nodeType": "ElementaryTypeName",
+              "src": "57:4:0",
+              "typeDescriptions": {
+                "typeIdentifier": "t_uint256",
+                "typeString": "uint256"
+              }
+            },
+            "value": null,
+            "visibility": "internal"
+          }
+        ],
+        "scope": 5,
+        "src": "34:44:0"
+      }
+    ],
+    "src": "0:78:0"
+  },
+  "compiler": {
+    "name": "solc",
+    "version": "0.5.8+commit.23d335f2.Emscripten.clang"
+  },
+  "networks": {},
+  "schemaVersion": "3.0.10",
+  "updatedAt": "2019-06-10T10:00:18.439Z",
+  "devdoc": {
+    "methods": {}
+  },
+  "userdoc": {
+    "methods": {}
+  }
+}

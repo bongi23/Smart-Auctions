@@ -1,26 +1,25 @@
 pragma solidity >=0.4.22 <0.6.0;
 
-contract EnglishAuction {
+import "./Auction.sol";
+import "./Escrow.sol";
+
+contract EnglishAuction is Auction {
     
     /// static after constructor
     address payable seller = msg.sender;
     uint public bid_expiration; /// can be smaller?
     uint8 public min_increment; /// percentual wrt the highest bid
     uint public buyout_price;
-    uint public reserve_price;
-    uint public start_time = block.number + 1;
+    uint public start_time = block.number;
     uint public duration; /// can be smaller?
     
     /// auction state
-    address payable public highest_bidder;
-    uint public highest_bid = 0;
-    uint public bid_block = 0;
+    uint public bid_block;
     bool public sold = false;
     bool public paid = false;
     
     mapping(address => uint) pending_refunds; /// funds of bidders, implementing withdrawal pattern
 
-    event AuctionStarting(uint);
     event SoldByBuyout(address, uint);
     event Sold(address, uint);
     event Unsold();
@@ -59,8 +58,9 @@ contract EnglishAuction {
         reserve_price = _reserve_price;
         
         duration = _duration; /// how many blocks until auction expiration 
-        
-        emit AuctionStarting(duration);
+        end = start+duration;
+
+        emit LogAuctionStarting(start, end);
     }
     
     function buy_now() public payable when_auction_is_open not_the_seller {
@@ -104,7 +104,7 @@ contract EnglishAuction {
             
             pending_refunds[refund_address] = refund;
             
-            emit OfferOutbid(refund_address);
+            emit LogHighestBid(msg.sender, msg.value, refund);
         }
     }
     
