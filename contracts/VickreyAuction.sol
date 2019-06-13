@@ -54,7 +54,8 @@ contract VickreyAuction is Auction {
     }
     
     modifier only_when_closed {
-        require(block.number > end); _;
+        if(!debug)
+            require(block.number > end); _;
     }
     
     modifier only_auctioneer_seller_buyer {
@@ -120,7 +121,7 @@ contract VickreyAuction is Auction {
     }
     
     function open(bytes32 nonce) public payable only_during(start_opening, end) {
-        require(bids[msg.sender].bid_hash != "" && !bids[msg.sender].opened && !bids[msg.sender].withdrawn);
+        require(bids[msg.sender].bid_hash.length > 0 && !bids[msg.sender].opened && !bids[msg.sender].withdrawn);
 
         bytes32 hash = keccak256(abi.encode(nonce, msg.value));
         require(hash == bids[msg.sender].bid_hash);
@@ -163,13 +164,20 @@ contract VickreyAuction is Auction {
         }
     }
     
-    function finalize() public only_when_closed only_auctioneer_seller_buyer returns (address){
+    function finalize() public only_when_closed only_auctioneer_seller_buyer returns (bool){
+        require(!sold);
+        if(highest_bid == 0) {
+            emit LogUnsold();
+            return false;
+        }
+        sold = true;
         /// initialize escrow contract
-        Escrow e = (new Escrow).value(price_to_pay)(seller, highest_bidder);
+        Escrow e = (new Escrow).value(price_to_pay)(seller, highest_bidder, debug, 50);
+        emit LogEscrowCreated(address(e));
         /// send fund to charity
         charity.transfer(address(this).balance);
         
-        return address(e);
+        return true;
     }
     
     function ask_refund() public only_when_closed only_one_refund {

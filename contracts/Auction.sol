@@ -5,11 +5,14 @@ contract Auction {
     uint start;
     uint end;
 
-    address highest_bidder;
+    address payable highest_bidder;
     uint highest_bid;
     
     event LogAuctionStarting(uint, uint);
     event LogHighestBid(address, uint, uint);
+    event LogUnsold();
+    event LogSold(address, uint);
+    event LogEscrowCreated(address);
 
     bool debug;
 
