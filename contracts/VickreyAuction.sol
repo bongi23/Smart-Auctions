@@ -1,4 +1,4 @@
-pragma solidity >=0.4.21 <0.6.0;
+pragma solidity >=0.4.22 <0.7.0;
 
 import "./Auction.sol";
 import "./Escrow.sol";
@@ -13,14 +13,19 @@ contract VickreyAuction is Auction {
         bool refund;
     }
     
+    enum Phases {
+        CommitmentPhase,
+        WithdrawalPhase,
+        OpeningPhase,
+        Finished
+    }
+    
     /// static after contract constructor
     address payable seller;
     address payable auctioneer = msg.sender;
     address payable charity;
+    
     uint public reserve_price;
-    uint public commitment_phase_length;
-    uint public withdrawal_phase_length;
-    uint public opening_phase_length;
     uint public deposit_requirement;
     uint escrow_duration;
     
@@ -34,10 +39,9 @@ contract VickreyAuction is Auction {
     uint public end;
     
     /// state of the contract
+    Phases public phase = Phases.CommitmentPhase;
     mapping(address => Bid) public bids;
-
     uint public price_to_pay; /// 2nd highest bid
-    
     /// finalizing 
     bool public sold;
 
@@ -47,27 +51,52 @@ contract VickreyAuction is Auction {
     event LogLosingBid(address, uint);
     event LogUpdateSecondPrice(uint, uint);
     
-    
-    modifier only_during(uint start_block, uint end_block) {
-        if(!debug)
-            require(block.number >= start && block.number <= end); _;
+    modifier duringPhase(Phases _phase) {
+        require(phase == _phase, "Function not allowed in this phase"); _;
     }
     
-    modifier only_when_closed {
-        if(!debug)
-            require(block.number > end); _;
+    function phaseToString(Phases _phase) internal pure returns (string memory) {
+        if(_phase == Phases.CommitmentPhase) return "Commitment phase";
+        if(_phase == Phases.WithdrawalPhase) return "Withdrawal phase";
+        if(_phase == Phases.OpeningPhase) return "Opening phase";
+        if(_phase == Phases.Finished) return "Finished phase";
     }
     
+    function nextPhase() internal {
+        phase = Phases(uint(phase) + 1);
+        emit LogPhaseTransition(phaseToString(phase));
+    }
+    
+    function nextPhase(Phases _phase) public {
+        require(debug);
+        phase = _phase;
+        emit LogPhaseTransition(phaseToString(phase));
+    }
+    
+    modifier blockTimedTransition() {
+        if(!debug) {
+            if(phase == Phases.CommitmentPhase && block.number > end_commitment)
+                nextPhase();
+            if(phase == Phases.WithdrawalPhase && block.number > end_withdrawal)
+                nextPhase();
+            if(phase == Phases.OpeningPhase && block.number > end)
+                nextPhase();
+        }
+        _;
+    }
+  
     modifier only_auctioneer_seller_buyer {
         require(msg.sender == auctioneer || msg.sender == seller || msg.sender == highest_bidder); _;
     }
     
-    modifier only_one_refund {
+    modifier eligibleForRefund {
         require(bids[msg.sender].opened && !bids[msg.sender].refund); _;
         /// withdrawn => !opened
     }
     
-    function debug_keccak(bytes32 nonce, uint val) public pure returns (bytes32) {
+    
+    function debug_keccak(bytes32 nonce, uint val) public view returns (bytes32) {
+        require(debug);
         return keccak256(abi.encode(nonce,val));
     }
     
@@ -76,22 +105,21 @@ contract VickreyAuction is Auction {
         require(_deposit_requirement > 0);
         require(_reserve_price > 0);
         require(_deposit_requirement >= _reserve_price/4 && _deposit_requirement <= _reserve_price/2);
-
+        
+        /* check that phase length is > 0*/
+        
         seller = _seller;
 
         deposit_requirement  = _deposit_requirement;
         reserve_price = _reserve_price;
 
-        commitment_phase_length = _commitment_phase_length;
-        end_commitment = start+commitment_phase_length;
+        end_commitment = start+_commitment_phase_length;
         
-        withdrawal_phase_length = _withdrawal_phase_length;
         start_withdrawal = end_commitment+1;
-        end_withdrawal = start_withdrawal+withdrawal_phase_length;
+        end_withdrawal = start_withdrawal+_withdrawal_phase_length;
         
-        opening_phase_length = _opening_phase_length;
         start_opening = end_withdrawal+1;
-        end = start_opening+opening_phase_length;
+        end = start_opening+_opening_phase_length;
         
         escrow_duration = _escrow_duration;
         debug = _debug;
@@ -99,18 +127,17 @@ contract VickreyAuction is Auction {
         emit LogAuctionStarting(start, end);
     }
     
-    function commit(bytes32 _envelope) public payable only_during(start, end_commitment) {
+    function commit(bytes32 _envelope) public payable blockTimedTransition duringPhase(Phases.CommitmentPhase) costs(deposit_requirement) {
         require(msg.sender != seller && msg.sender != auctioneer);
-        require(bids[msg.sender].bid_hash == "");
-        require(msg.value == deposit_requirement);
-        
+        require(bids[msg.sender].bid_hash.length == 0);
+
         bids[msg.sender].bid_hash = _envelope;
         
         emit LogEnvelopeCommited(msg.sender);
         
     }
     
-    function withdraw_envelope() public only_during(start_withdrawal, end_withdrawal) {
+    function withdraw_envelope() public blockTimedTransition duringPhase(Phases.WithdrawalPhase) {
         require(bids[msg.sender].withdrawn == false);
         
         bids[msg.sender].withdrawn = true;
@@ -120,7 +147,7 @@ contract VickreyAuction is Auction {
         
     }
     
-    function open(bytes32 nonce) public payable only_during(start_opening, end) {
+    function open(bytes32 nonce) public payable blockTimedTransition duringPhase(Phases.OpeningPhase) {
         require(bids[msg.sender].bid_hash.length > 0 && !bids[msg.sender].opened && !bids[msg.sender].withdrawn);
 
         bytes32 hash = keccak256(abi.encode(nonce, msg.value));
@@ -164,7 +191,7 @@ contract VickreyAuction is Auction {
         }
     }
     
-    function finalize() public only_when_closed only_auctioneer_seller_buyer returns (bool){
+    function finalize() public blockTimedTransition duringPhase(Phases.Finished) only_auctioneer_seller_buyer returns (bool){
         require(!sold);
         if(highest_bid == 0) {
             emit LogUnsold();
@@ -180,7 +207,7 @@ contract VickreyAuction is Auction {
         return true;
     }
     
-    function ask_refund() public only_when_closed only_one_refund {
+    function ask_refund() public blockTimedTransition duringPhase(Phases.Finished) eligibleForRefund {
         bids[msg.sender].refund = true;
         
         uint refund;
@@ -189,7 +216,6 @@ contract VickreyAuction is Auction {
             refund = deposit_requirement+(highest_bid-price_to_pay);
         else
             refund = deposit_requirement+bids[msg.sender].value;
-        
         
         msg.sender.transfer(refund);
     }

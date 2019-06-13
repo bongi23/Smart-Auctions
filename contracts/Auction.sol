@@ -1,6 +1,7 @@
 pragma solidity >=0.4.21 <0.6.0;
 
 contract Auction {
+
     uint reserve_price;
     uint start;
     uint end;
@@ -8,6 +9,7 @@ contract Auction {
     address payable highest_bidder;
     uint highest_bid;
     
+    event LogPhaseTransition(string);
     event LogAuctionStarting(uint, uint);
     event LogHighestBid(address, uint, uint);
     event LogUnsold();
@@ -15,5 +17,9 @@ contract Auction {
     event LogEscrowCreated(address);
 
     bool debug;
+    
+    modifier costs(uint cost) {
+        require(msg.value == cost); _;
+    }
 
 }

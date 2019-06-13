@@ -5,6 +5,12 @@ import "./Escrow.sol";
 
 contract EnglishAuction is Auction {
     
+    enum Phases {
+        Started,
+        BidReceived,
+        Sold,
+        Finished
+    }
     /// static after constructor
     address payable seller = msg.sender;
     uint public unchallenged_interval; /// can be smaller?
@@ -14,6 +20,7 @@ contract EnglishAuction is Auction {
     uint public duration; /// can be smaller?
     
     /// auction state
+    Phases public phase = Phases.Started;
     uint public bid_block;
     bool public sold = false;
     bool public paid = false;
@@ -23,17 +30,25 @@ contract EnglishAuction is Auction {
     event LogSoldByBuyout(address, uint);
     event LogWithdrawalExecuted(address, uint);
     
-    modifier when_auction_is_open() {
-        if(!debug)
-            require(block.number >= start_time && start_time+duration >= block.number); _;
+    modifier blockTimedTransition {
+        if(!debug) {
+            if(phase == Phases.BidReceived && (block.number > end || block.number > bid_block+unchallenged_interval)) {
+                phase = Phases.Sold; 
+                emit LogSold(highest_bidder, highest_bid);
+            }
+            else if(phase == Phases.Started && block.number > end) {
+                phase = Phases.Finished;
+                emit LogPhaseTransition(phaseToString(phase));
+            }
+        }
+        _;
     }
     
-    modifier when_auction_is_close_OR_sold() {
-        if(!debug)    
-            require(block.number > start_time+duration || sold); _;
+    modifier duringPhase(Phases _phase) {
+        require(phase == _phase); _;
     }
 
-    modifier has_pending_funds() {
+    modifier has_pending_refunds() {
         require(pending_refunds[msg.sender] > 0); _;
     }
     
@@ -41,9 +56,17 @@ contract EnglishAuction is Auction {
         require(seller != msg.sender); _;
     }
     
-    ///modifier only_the_seller() {
-    ///    require(seller == msg.sender); _;
-    ///}
+    function nextPhase(Phases _phase) public {
+        require(debug);
+        phase = _phase;
+        emit LogPhaseTransition(phaseToString(phase));
+    }
+    
+    function phaseToString(Phases _phase) internal pure returns (string memory) {
+        if(_phase == Phases.Started) return "Started phase";
+        if(_phase == Phases.BidReceived) return "BidReceived phase";
+        if(_phase == Phases.Finished) return "Finished phase";
+    }
     
     constructor (uint _duration, uint8 _min_increment, uint _buyout_price, uint _reserve_price, 
                     uint _unchallenged_interval) public {
@@ -63,34 +86,29 @@ contract EnglishAuction is Auction {
         emit LogAuctionStarting(start, end);
     }
     
-    function buy_now() public payable when_auction_is_open not_the_seller {
-        require(sold == false);
-        require(highest_bid == 0);
-        require(msg.value >= buyout_price); /// maybe equal?
+    function buy_now() public payable blockTimedTransition duringPhase(Phases.Started) not_the_seller costs(buyout_price) {
+
+        phase = Phases.Sold;        
         
-        sold = true;
         highest_bidder = msg.sender;
         highest_bid = msg.value;
         
         emit LogSoldByBuyout(msg.sender, buyout_price);
     }
     
-    function bid() public payable when_auction_is_open not_the_seller {
-        require(msg.sender != highest_bidder && !sold);
-        require(sold == false);
-
-        if(highest_bid > 0 && bid_block+unchallenged_interval < block.number) {
-            sold = true;
-            emit LogSold(highest_bidder, highest_bid);
-            return;
-        }
+    function bid() public payable blockTimedTransition not_the_seller {
+        require(phase == Phases.Started || phase == Phases.BidReceived);
+        require(msg.sender != highest_bidder);
         
-        if(highest_bid == 0) { /// first bid
+        if(phase == Phases.Started) { /// first bid
             require(msg.value >= reserve_price);
             
             highest_bid = msg.value;
             highest_bidder = msg.sender;
             bid_block = block.number;
+            
+            phase = Phases.BidReceived;
+            emit LogPhaseTransition(phaseToString(phase));
         }
         else {
             uint increment = highest_bid*min_increment/100;
@@ -109,21 +127,18 @@ contract EnglishAuction is Auction {
         }
     }
     
-    function finalize() public when_auction_is_close_OR_sold {
-        require(paid == false);
+    function finalize() public blockTimedTransition duringPhase(Phases.Sold) {
         require(highest_bidder == msg.sender || seller == msg.sender);
         
-        paid = true;
-        if(!sold) 
-            emit LogUnsold();
-        else {
-            Escrow e = (new Escrow).value(highest_bid)(seller, highest_bidder, debug, 50);
-            emit LogEscrowCreated(address(e));
-        }
+        phase = Phases.Finished;
+        
+        Escrow e = (new Escrow).value(highest_bid)(seller, highest_bidder, debug, 50);
+        emit LogEscrowCreated(address(e));
+        
 
     }
 
-    function withdrawal() public has_pending_funds {
+    function withdrawal() public has_pending_refunds {
         uint refund = pending_refunds[msg.sender];
         pending_refunds[msg.sender] = 0;
         
