@@ -42,7 +42,6 @@ contract VickreyAuction is Auction {
     Phases public phase = Phases.CommitmentPhase;
     mapping(address => Bid) public bids;
     uint public price_to_pay; /// 2nd highest bid
-    /// finalizing 
     bool public sold;
 
     event LogEnvelopeCommited(address);
@@ -106,7 +105,7 @@ contract VickreyAuction is Auction {
         require(_reserve_price > 0);
         require(_deposit_requirement >= _reserve_price/4 && _deposit_requirement <= _reserve_price/2);
         
-        /* check that phase length is > 0*/
+        /* check that phases lengths are > 0*/
         
         seller = _seller;
 
@@ -173,8 +172,9 @@ contract VickreyAuction is Auction {
             else if(msg.value <= highest_bid ) {
                ///...but check if 2nd highest bid
                 if(msg.value >= price_to_pay) {
-                    emit LogUpdateSecondPrice(msg.value, price_to_pay);
                     price_to_pay = msg.value;
+                    emit LogUpdateSecondPrice(msg.value, price_to_pay);
+
                 }
                 bids[msg.sender].refund = true;
                 uint full_refund = msg.value+deposit_requirement;

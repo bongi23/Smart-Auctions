@@ -17,13 +17,10 @@ contract EnglishAuction is Auction {
     uint8 public min_increment; /// percentual wrt the highest bid
     uint public buyout_price;
     uint public start_time = block.number;
-    uint public duration; /// can be smaller?
-    
+
     /// auction state
     Phases public phase = Phases.Started;
     uint public bid_block;
-    bool public sold = false;
-    bool public paid = false;
     
     mapping(address => uint) pending_refunds; /// funds of bidders, implementing withdrawal pattern
 
@@ -74,14 +71,14 @@ contract EnglishAuction is Auction {
         require(_buyout_price > _reserve_price);
         require(_buyout_price > 0);
         require( _reserve_price > 0);
+        require(_duration > 0);
         
         unchallenged_interval = _unchallenged_interval;
         min_increment = _min_increment;
         buyout_price = _buyout_price;
         reserve_price = _reserve_price;
         
-        duration = _duration; /// how many blocks until auction expiration 
-        end = start+duration;
+        end = start+_duration;
 
         emit LogAuctionStarting(start, end);
     }
@@ -139,6 +136,8 @@ contract EnglishAuction is Auction {
     }
 
     function withdrawal() public has_pending_refunds {
+        require(msg.sender != highest_bidder); // superfluo, il suo refund è a 0
+        
         uint refund = pending_refunds[msg.sender];
         pending_refunds[msg.sender] = 0;
         
