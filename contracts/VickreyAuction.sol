@@ -197,7 +197,7 @@ contract VickreyAuction is Auction {
     function finalize(bool escrow) public blockTimedTransition duringPhase(Phases.Finished) only_auctioneer_seller_buyer returns (bool){
         require(!sold, "Auction already concluded");
         require(msg.sender == auctioneer, "Finalize can be called only by the auctioneer");
-        require(refundLeft == 0, "Wait until all the bidders get refunded");
+        require(refundLeft == 0 || end < block.number + 100 || debug, "Wait until all the bidders get refunded" );
         
         if(highestBid == 0) {
             emit LogUnsold();
