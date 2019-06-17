@@ -1,0 +1,20 @@
+\contentsline {section}{\numberline {1}Introduction}{3}
+\contentsline {section}{\numberline {2}Contracts}{3}
+\contentsline {subsection}{\numberline {2.1}Escrow}{3}
+\contentsline {subsection}{\numberline {2.2}Auction}{4}
+\contentsline {subsubsection}{\numberline {2.2.1}Vickrey Auction}{4}
+\contentsline {subsubsection}{\numberline {2.2.2}English Auction}{6}
+\contentsline {section}{\numberline {3}Security consideration}{8}
+\contentsline {subsection}{\numberline {3.1}State Machine pattern}{8}
+\contentsline {subsection}{\numberline {3.2}Withdrawal pattern}{9}
+\contentsline {subsection}{\numberline {3.3}Checks-Effects-Interactions pattern}{10}
+\contentsline {section}{\numberline {4}Gas consumption consideration}{11}
+\contentsline {subsection}{\numberline {4.1}Vickrey auction scenario}{12}
+\contentsline {subsection}{\numberline {4.2}English auction scenario}{13}
+\contentsline {section}{\numberline {5}Testing guidelines}{13}
+\contentsline {subsection}{\numberline {5.1}Testing Vickrey auction}{13}
+\contentsline {subsection}{\numberline {5.2}Testing English auction}{15}
+\contentsline {section}{\numberline {A}Auction.sol}{16}
+\contentsline {section}{\numberline {B}Escrow.sol}{16}
+\contentsline {section}{\numberline {C}VickreyAuction.sol}{16}
+\contentsline {section}{\numberline {D}EnglishAuction.sol}{16}

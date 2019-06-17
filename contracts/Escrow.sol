@@ -1,15 +1,17 @@
 pragma solidity >=0.4.22 <0.6.0;
 
 contract Escrow {
-
+    
+    /*static variables after contract construction*/
     uint public funds;
     uint created = block.number;
     uint expiration;
     address payable seller;
     address payable buyer;
-
-    bytes32 buyer_hash;
-    string expedition_number;
+    
+    /*state of the escrow*/
+    bytes32 buyerHash;
+    string expeditionNumber;
     
     bool debug;
     bool paid;
@@ -27,48 +29,49 @@ contract Escrow {
         expiration = created+_expiration;
     }
     
-    function set_hash(bytes32 hash) public {
-        require(block.number <= expiration);
-        require(msg.sender == buyer);
+    function setHash(bytes32 hash) public {
+        require(block.number <= expiration, "Buyer cannot set hash if auction has expired");
+        require(msg.sender == buyer, "only the buyer can communicate the hash");
         
-        buyer_hash = hash;
+        buyerHash = hash;
     }
     
-    function set_expedition_number(string memory en) public {
-        require(bytes(expedition_number).length != 0 && bytes(en).length != 0);
-        require(msg.sender == seller);
-        require(block.number <= expiration);
+    function setExpeditionNumber(string memory en) public {
+        require(bytes(expeditionNumber).length == 0, "Expedition number can be set only once");
+        require(bytes(en).length != 0, "Expedition number cannot have zero length");
+        require(msg.sender == seller, "Only the seller can communicate expedition number");
+        require(block.number <= expiration, "Expedition number cannot be communicate after escrow expiration");
         
-        expedition_number = en; /// suppose it is valid
+        expeditionNumber = en; /// suppose it is valid
     }
     
-    function verify_hash(uint nonce) public {
-        require(!paid);
-        require(msg.sender == seller && buyer_hash.length != 0);
-        require(block.number <= expiration);
+    function verifyHash(uint nonce) public {
+        require(!paid, "The good has been already paid");
+        require(msg.sender == seller && buyerHash != "", "Only the seller can verify the hash of the buyer");
+        require(block.number <= expiration, "hash can be verified only before expiration");
         
-        bytes32 seller_hash = keccak256(abi.encode(nonce));
-        require(seller_hash == buyer_hash);
+        bytes32 sellerHash = keccak256(abi.encode(nonce));
+        require(sellerHash == buyerHash);
         paid = true;
         seller.transfer(funds);
     }
     
-    function refund_seller() public {
-        require(block.number > expiration);
-        require(bytes(expedition_number).length > 0);
-        require(msg.sender == seller);
-        require(!paid && !refunded);
+    function refundSeller() public {
+        require(block.number > expiration, "Seller can ask refund only after escrow expiration");
+        require(bytes(expeditionNumber).length > 0, "Seller must have provided the expedition number before asking a refund");
+        require(msg.sender == seller, "Only the sller can call this function");
+        require(!paid && !refunded, "seller can be refunded only once and only if he has not been paid yet");
         
         paid = true;
         seller.transfer(funds);
     }
     
-    function refund_buyer() public {
-        require(block.number > expiration);
-        require(bytes(expedition_number).length == 0);
-        require(msg.sender == buyer);
-        require(buyer_hash.length > 0);
-        require(!refunded && !paid);
+    function refundBuyer() public {
+        require(block.number > expiration, "buyer can ask refund only after escrow expiration");
+        require(bytes(expeditionNumber).length == 0, "buyer can be refunded only if the sleer has not provided a valid expedition number");
+        require(msg.sender == buyer, "Only the buyer canc all this function");
+        require(buyerHash != "", "The buyer must have provided an hash in order to be refunded");
+        require(!refunded && !paid, "The buyer can be refunded only once and only if the good has not been paid yet");
         
         refunded = true;
         buyer.transfer(funds);

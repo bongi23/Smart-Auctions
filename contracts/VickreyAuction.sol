@@ -6,7 +6,7 @@ import "./Escrow.sol";
 contract VickreyAuction is Auction {
     
     struct Bid {
-        bytes32 bid_hash;
+        bytes32 bidHash;
         uint value;
         bool opened;
         bool withdrawn;
@@ -20,30 +20,29 @@ contract VickreyAuction is Auction {
         Finished
     }
     
-    /// static after contract constructor
-    address payable seller;
-    address payable auctioneer = msg.sender;
+    /*static variables after contract construction*/
     address payable charity;
     
-    uint public reserve_price;
-    uint public deposit_requirement;
-    uint escrow_duration;
+    uint public depositRequirement;
+    uint escrowDuration;
     
-    uint public start = block.number; /// 20 is a grace period of about 5 mins
-    uint public end_commitment;
+    uint public start = block.number; /*grace period ignored*/
+    uint public endCommitment;
 
-    uint public start_withdrawal;
-    uint public end_withdrawal;
+    uint public startWithdrawal;
+    uint public endWithdrawal;
     
-    uint public start_opening;
+    uint public startOpening;
     uint public end;
     
-    /// state of the contract
+    /*state of the auction*/
     Phases public phase = Phases.CommitmentPhase;
-    mapping(address => Bid) public bids;
-    uint public price_to_pay; /// 2nd highest bid
+    mapping(address => Bid) public bids; /*for storing the bids of every bidder*/
+    uint public priceToPay; /* 2nd highest bid */
     bool public sold;
-
+    
+    uint refundLeft;
+    
     event LogEnvelopeCommited(address);
     event LogEnvelopeWithdrawn(address);
     event LogVoidBid(address, uint);
@@ -54,6 +53,34 @@ contract VickreyAuction is Auction {
         require(phase == _phase, "Function not allowed in this phase"); _;
     }
     
+    /*time flow simulation*/
+    modifier blockTimedTransition() {
+        if(!debug) {
+            if(phase == Phases.CommitmentPhase && block.number > endCommitment)
+                nextPhase();
+            if(phase == Phases.WithdrawalPhase && block.number > endWithdrawal)
+                nextPhase();
+            if(phase == Phases.OpeningPhase && block.number > end)
+                nextPhase();
+        }
+        _;
+    }
+    
+     modifier only_auctioneer_seller_buyer {
+        require(msg.sender == auctioneer || msg.sender == seller || msg.sender == highestBidder, "Unauthorized"); _;
+    }
+    
+    modifier eligibleForRefund {
+        require(bids[msg.sender].opened && !bids[msg.sender].refund, "Bidder is not eligible for refund"); _;
+    }
+    
+    /*state transition function*/
+    function nextPhase() internal {
+        phase = Phases(uint(phase) + 1);
+        emit LogPhaseTransition(phaseToString(phase));
+    }
+    
+    /*utility function, may be deleted in a real deployment*/
     function phaseToString(Phases _phase) internal pure returns (string memory) {
         if(_phase == Phases.CommitmentPhase) return "Commitment phase";
         if(_phase == Phases.WithdrawalPhase) return "Withdrawal phase";
@@ -61,161 +88,145 @@ contract VickreyAuction is Auction {
         if(_phase == Phases.Finished) return "Finished phase";
     }
     
-    function nextPhase() internal {
-        phase = Phases(uint(phase) + 1);
-        emit LogPhaseTransition(phaseToString(phase));
-    }
-    
-    function nextPhase(Phases _phase) public {
-        require(debug);
+    /*utility function for change between states when debugging*/
+    function nextPhase(Phases _phase) public onlyDebugging{
         phase = _phase;
         emit LogPhaseTransition(phaseToString(phase));
     }
     
-    modifier blockTimedTransition() {
-        if(!debug) {
-            if(phase == Phases.CommitmentPhase && block.number > end_commitment)
-                nextPhase();
-            if(phase == Phases.WithdrawalPhase && block.number > end_withdrawal)
-                nextPhase();
-            if(phase == Phases.OpeningPhase && block.number > end)
-                nextPhase();
-        }
-        _;
-    }
-  
-    modifier only_auctioneer_seller_buyer {
-        require(msg.sender == auctioneer || msg.sender == seller || msg.sender == highest_bidder); _;
-    }
-    
-    modifier eligibleForRefund {
-        require(bids[msg.sender].opened && !bids[msg.sender].refund); _;
-        /// withdrawn => !opened
-    }
-    
-    
-    function debug_keccak(bytes32 nonce, uint val) public view returns (bytes32) {
-        require(debug);
+    /* debug function used to obtain a fake envelope*/
+    function debug_keccak(bytes32 nonce, uint val) public view onlyDebugging returns (bytes32) {
         return keccak256(abi.encode(nonce,val));
     }
     
-    constructor (address payable _seller, uint _reserve_price, uint _commitment_phase_length, uint _withdrawal_phase_length, 
+    constructor (address payable _seller, address payable _charity, uint _reserve_price, uint _commitment_phase_length, uint _withdrawal_phase_length, 
                     uint _opening_phase_length, uint _deposit_requirement, uint _escrow_duration, bool _debug) public {
-        require(_deposit_requirement > 0);
-        require(_reserve_price > 0);
-        require(_deposit_requirement >= _reserve_price/4 && _deposit_requirement <= _reserve_price/2);
         
-        /* check that phases lengths are > 0*/
-        
+        require(_deposit_requirement > 0, "Deposit requirement must be greater than zero");
+        require(_reserve_price > 0, "Reserve price must be greater than zero");
+        require(_deposit_requirement >= _reserve_price/4 && _deposit_requirement <= _reserve_price/2, "Deposit requiremente out of range");
+        require(_commitment_phase_length > 0 && _withdrawal_phase_length > 0 && _opening_phase_length > 0, "Phase's length cannot be zero");        
+
         seller = _seller;
+        charity = _charity;
 
-        deposit_requirement  = _deposit_requirement;
-        reserve_price = _reserve_price;
+        depositRequirement  = _deposit_requirement;
+        reservePrice = _reserve_price;
 
-        end_commitment = start+_commitment_phase_length;
+        endCommitment = start+_commitment_phase_length;
         
-        start_withdrawal = end_commitment+1;
-        end_withdrawal = start_withdrawal+_withdrawal_phase_length;
+        startWithdrawal = endCommitment+1;
+        endWithdrawal = startWithdrawal+_withdrawal_phase_length;
         
-        start_opening = end_withdrawal+1;
-        end = start_opening+_opening_phase_length;
+        startOpening = endWithdrawal+1;
+        end = startOpening+_opening_phase_length;
         
-        escrow_duration = _escrow_duration;
+        escrowDuration = _escrow_duration;
         debug = _debug;
         
         emit LogAuctionStarting(start, end);
     }
     
-    function commit(bytes32 _envelope) public payable blockTimedTransition duringPhase(Phases.CommitmentPhase) costs(deposit_requirement) {
-        require(msg.sender != seller && msg.sender != auctioneer);
-        require(bids[msg.sender].bid_hash.length == 0);
+    function commit(bytes32 _envelope) public payable blockTimedTransition duringPhase(Phases.CommitmentPhase) notTheSeller notTheAuctioneer costs(depositRequirement) {
+        require(bids[msg.sender].bidHash == "", "Bidder has already sent his envelope");
 
-        bids[msg.sender].bid_hash = _envelope;
+        bids[msg.sender].bidHash = _envelope;
         
         emit LogEnvelopeCommited(msg.sender);
         
     }
     
     function withdraw_envelope() public blockTimedTransition duringPhase(Phases.WithdrawalPhase) {
-        require(bids[msg.sender].withdrawn == false);
+        require(bids[msg.sender].withdrawn == false, "Bidder has already withdrawn");
         
         bids[msg.sender].withdrawn = true;
         emit LogEnvelopeWithdrawn(msg.sender);
 
-        msg.sender.transfer(deposit_requirement/2);
+        msg.sender.transfer(depositRequirement/2);
         
     }
     
     function open(bytes32 nonce) public payable blockTimedTransition duringPhase(Phases.OpeningPhase) {
-        require(bids[msg.sender].bid_hash.length > 0 && !bids[msg.sender].opened && !bids[msg.sender].withdrawn);
+        require(bids[msg.sender].bidHash != 0 && !bids[msg.sender].opened && !bids[msg.sender].withdrawn, "Bidder not allowed to open");
 
         bytes32 hash = keccak256(abi.encode(nonce, msg.value));
-        require(hash == bids[msg.sender].bid_hash);
+        require(hash == bids[msg.sender].bidHash, "Invalid nonce or bid");
         
         bids[msg.sender].opened = true;
         bids[msg.sender].value = msg.value;
         
-        /// void bid 
-        if(msg.value < reserve_price) {
+        /* The bid is void*/
+        if(msg.value < reservePrice) {
             bids[msg.sender].refund = true;
             emit LogVoidBid(msg.sender, msg.value);
-            msg.sender.transfer(msg.value+(deposit_requirement/2));
+            msg.sender.transfer(msg.value+(depositRequirement/2));
         } else {    
-            /// first valid opened bid
-            if(highest_bid == 0) {
-                price_to_pay = reserve_price;
-                highest_bid = msg.value;
-                highest_bidder = msg.sender;
-                emit LogHighestBid(msg.sender, msg.value, reserve_price);
+            /*The bid opened is the first one*/
+            if(highestBid == 0) {
+                priceToPay = reservePrice; 
+                highestBid = msg.value;
+                highestBidder = msg.sender;
+                emit LogHighestBid(msg.sender, msg.value, reservePrice);
             }
-            /// losing bid
-            else if(msg.value <= highest_bid ) {
-               ///...but check if 2nd highest bid
-                if(msg.value >= price_to_pay) {
-                    price_to_pay = msg.value;
-                    emit LogUpdateSecondPrice(msg.value, price_to_pay);
+            /*The bid opened is a losing one*/
+            else if(msg.value <= highestBid ) {
+                /*...but it is the second highest one*/
+                if(msg.value >= priceToPay) {
+                    priceToPay = msg.value;
+                    emit LogUpdateSecondPrice(msg.value, priceToPay);
 
                 }
+                /*here the bidder can be immediately refund*/
                 bids[msg.sender].refund = true;
-                uint full_refund = msg.value+deposit_requirement;
+                uint full_refund = msg.value+depositRequirement;
                 emit LogLosingBid(msg.sender, msg.value);
                 msg.sender.transfer(full_refund);
             }
-            /// new highest_bid
+            /*the opened bid is the highest one*/
             else {
-                price_to_pay = highest_bid;
-                highest_bid = msg.value;
-                highest_bidder = msg.sender;
-                emit LogHighestBid(msg.sender, msg.value, price_to_pay);
+                priceToPay = highestBid;
+                highestBid = msg.value;
+                highestBidder = msg.sender;
+                emit LogHighestBid(msg.sender, msg.value, priceToPay);
+                refundLeft++;
+                /*cannot refund the previous highest bidder, it will violate the Withdrawal pattern*/
             }
         }
     }
     
-    function finalize() public blockTimedTransition duringPhase(Phases.Finished) only_auctioneer_seller_buyer returns (bool){
-        require(!sold);
-        if(highest_bid == 0) {
+    function finalize(bool escrow) public blockTimedTransition duringPhase(Phases.Finished) only_auctioneer_seller_buyer returns (bool){
+        require(!sold, "Auction already concluded");
+        require(msg.sender == auctioneer, "Finalize can be called only by the auctioneer");
+        require(refundLeft == 0, "Wait until all the bidders get refunded");
+        
+        if(highestBid == 0) {
             emit LogUnsold();
             return false;
         }
         sold = true;
-        /// initialize escrow contract
-        Escrow e = (new Escrow).value(price_to_pay)(seller, highest_bidder, debug, 50);
-        emit LogEscrowCreated(address(e));
-        /// send fund to charity
+        /* deploy of the escrow contract */
+        if(escrow) {
+            Escrow e = (new Escrow).value(priceToPay)(seller, highestBidder, debug, 50);
+            emit LogEscrowCreated(address(e));
+        }
+        else 
+            seller.transfer(priceToPay);
+        /*send fund of bad bidders to charity*/
         charity.transfer(address(this).balance);
         
         return true;
     }
     
-    function ask_refund() public blockTimedTransition duringPhase(Phases.Finished) eligibleForRefund {
+    function askRefund() public blockTimedTransition duringPhase(Phases.Finished) eligibleForRefund {
         bids[msg.sender].refund = true;
-        
+        refundLeft--;
+       
         uint refund;
         
-        if(msg.sender == highest_bidder)
-            refund = deposit_requirement+(highest_bid-price_to_pay);
+        if(msg.sender == highestBidder)
+            refund = depositRequirement+(highestBid-priceToPay);
         else
-            refund = deposit_requirement+bids[msg.sender].value;
+            refund = depositRequirement+bids[msg.sender].value;
         
         msg.sender.transfer(refund);
     }

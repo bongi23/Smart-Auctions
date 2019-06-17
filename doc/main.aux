@@ -1,0 +1,42 @@
+\relax 
+\@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{3}}
+\@writefile{toc}{\contentsline {section}{\numberline {2}Contracts}{3}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Escrow}{3}}
+\newlabel{escrow}{{2.1}{3}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}Auction}{4}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.2.1}Vickrey Auction}{4}}
+\newlabel{vickrey}{{2.2.1}{4}}
+\newlabel{timevickrey}{{1}{5}}
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {1}Modifier used for modelling the time flow during a Vickrey auction. The function \textit  {nextPhase()} realise the transition from the actual phase to the next one, following the order described above and emitting an event.}{5}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.2.2}English Auction}{6}}
+\newlabel{english}{{2.2.2}{6}}
+\newlabel{englishstates}{{2.2.2}{7}}
+\newlabel{englishtime}{{2}{7}}
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {2}Modifier used for modelling the time flow during an English auction, according to the automaton.}{7}}
+\@writefile{toc}{\contentsline {section}{\numberline {3}Security consideration}{8}}
+\newlabel{security}{{3}{8}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}State Machine pattern}{8}}
+\newlabel{statemachine}{{3.1}{8}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Withdrawal pattern}{9}}
+\newlabel{withdrawal}{{3.2}{9}}
+\newlabel{badeng}{{3}{9}}
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {3}Buggy code that do not use the withdrawal pattern}{9}}
+\newlabel{goodeng}{{4}{9}}
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {4}Correct code that do use the withdrawal pattern}{9}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Checks-Effects-Interactions pattern}{10}}
+\newlabel{CEIpattern}{{3.3}{10}}
+\newlabel{badrefund}{{5}{10}}
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {5}Buggy refund function, vulnerable to re-entrancy attacks}{10}}
+\newlabel{goodrefund}{{6}{11}}
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {6}Correct refund function. Since on failure \textit  {transfer} revert the transaction there is no need to check its returned value.}{11}}
+\@writefile{toc}{\contentsline {section}{\numberline {4}Gas consumption consideration}{11}}
+\newlabel{gas}{{4}{11}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Vickrey auction scenario}{12}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}English auction scenario}{13}}
+\@writefile{toc}{\contentsline {section}{\numberline {5}Testing guidelines}{13}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Testing Vickrey auction}{13}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Testing English auction}{15}}
+\@writefile{toc}{\contentsline {section}{\numberline {A}Auction.sol}{16}}
+\@writefile{toc}{\contentsline {section}{\numberline {B}Escrow.sol}{16}}
+\@writefile{toc}{\contentsline {section}{\numberline {C}VickreyAuction.sol}{16}}
+\@writefile{toc}{\contentsline {section}{\numberline {D}EnglishAuction.sol}{16}}
