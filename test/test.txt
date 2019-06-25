@@ -1,7 +1,0 @@
-seller = 4bf7
-auctioneer = 733c
-
-
-160c, 2000
-4d2db, 450
-40225, 1200
